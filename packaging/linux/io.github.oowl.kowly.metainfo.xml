@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.oowl.kowly</id>
+  <name>kowly</name>
+  <summary>Send files to and receive files from iPhones over AirDrop</summary>
+  <summary xml:lang="zh-CN">通过 AirDrop 与 iPhone 互传文件</summary>
+  <developer id="io.github.oowl">
+    <name>Jun Ouyang</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      kowly brings AirDrop to KDE Plasma. It drives the Wi-Fi card through
+      Owly's radio service, owlyd, and speaks AirDrop to iPhones in their
+      "Everyone for 10 Minutes" mode.
+    </p>
+    <ul>
+      <li>Drop files on the window, or straight onto a device, to send them</li>
+      <li>Send from Dolphin's context menu</li>
+      <li>Accept or decline incoming files in the window or from a notification</li>
+      <li>English and Chinese</li>
+    </ul>
+    <p>
+      It needs Owly installed, and a Wi-Fi card Owly supports.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.oowl.kowly.desktop</launchable>
+  <provides>
+    <binary>kowly</binary>
+  </provides>
+  <categories>
+    <category>Network</category>
+    <category>FileTransfer</category>
+  </categories>
+  <keywords>
+    <keyword>AirDrop</keyword>
+    <keyword>iPhone</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/oowl/kowly</url>
+  <url type="bugtracker">https://github.com/oowl/kowly/issues</url>
+  <url type="vcs-browser">https://github.com/oowl/kowly</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Sending a photo to an iPhone</caption>
+      <image>https://raw.githubusercontent.com/oowl/kowly/main/docs/screenshots/send-en.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>An iPhone asking to send a file</caption>
+      <image>https://raw.githubusercontent.com/oowl/kowly/main/docs/screenshots/receive-en.png</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.1.0" date="2026-11-03"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

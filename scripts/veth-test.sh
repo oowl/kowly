@@ -1,16 +1,16 @@
 #!/bin/sh
-# Sends files between two `owly-drop --headless` over a veth pair, in a
+# Sends files between two `kowly --headless` over a veth pair, in a
 # network namespace of its own, the way owly's own tests do: no root, no
 # radio, no iPhone. Three cases: accepted up front, accepted when asked, and
 # declined when asked. Exits 0 when all pass.
 set -eu
 
-if [ "${OWLY_DROP_NETNS:-}" != 1 ]; then
-    exec env OWLY_DROP_NETNS=1 unshare --user --map-root-user --net -- "$0" "$@"
+if [ "${KOWLY_NETNS:-}" != 1 ]; then
+    exec env KOWLY_NETNS=1 unshare --user --map-root-user --net -- "$0" "$@"
 fi
 
 here=$(cd "$(dirname "$0")/.." && pwd)
-bin=${BIN:-$here/target/debug/owly-drop}
+bin=${BIN:-$here/target/debug/kowly}
 work=$(mktemp -d)
 rx=
 trap '[ -n "$rx" ] && kill $rx 2>/dev/null; rm -rf "$work"' EXIT
@@ -26,7 +26,7 @@ for i in owa owb; do
 done
 
 # Keep the test's TLS identity and Bluetooth out of the user's.
-export XDG_STATE_HOME="$work/state" OWLY_DROP_NO_BLE=1
+export XDG_STATE_HOME="$work/state" KOWLY_NO_BLE=1
 head -c 3000000 /dev/urandom > "$work/photo.bin"
 failed=0
 

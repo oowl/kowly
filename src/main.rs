@@ -1,5 +1,5 @@
-mod bridge;
 mod airdrop;
+mod bridge;
 mod headless;
 mod single;
 
@@ -11,7 +11,7 @@ fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "owly_drop=info,owly_airdrop=warn".into()),
+                .unwrap_or_else(|_| "kowly=info,owly_airdrop=warn".into()),
         )
         .with_writer(std::io::stderr)
         .init();
@@ -29,13 +29,18 @@ fn main() -> ExitCode {
 
     let mut app = QGuiApplication::new();
     if let Some(mut app) = app.as_mut() {
-        app.as_mut().set_application_name(&QString::from("owly-drop"));
-        app.as_mut().set_organization_name(&QString::from("owly-drop"));
-        app.as_mut().set_application_display_name(&QString::from("AirDrop"));
+        // Qt on Wayland makes the app id of the reversed organization domain
+        // and the executable's name: io.github.oowl.kowly, the desktop file's.
+        app.as_mut().set_application_name(&QString::from("kowly"));
+        app.as_mut().set_organization_name(&QString::from("kowly"));
+        app.as_mut()
+            .set_organization_domain(&QString::from("oowl.github.io"));
+        app.as_mut()
+            .set_application_display_name(&QString::from("kowly"));
     }
     let mut engine = QQmlApplicationEngine::new();
     if let Some(engine) = engine.as_mut() {
-        engine.load(&QUrl::from("qrc:/qt/qml/io/github/owlydrop/qml/Main.qml"));
+        engine.load(&QUrl::from("qrc:/qt/qml/io/github/oowl/kowly/qml/Main.qml"));
     }
     if let Some(app) = app.as_mut() {
         app.exec();

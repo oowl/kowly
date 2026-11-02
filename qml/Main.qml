@@ -4,12 +4,12 @@ import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
 import QtCore
 import org.kde.kirigami as Kirigami
-import io.github.owlydrop
+import io.github.oowl.kowly
 
 Kirigami.ApplicationWindow {
     id: root
 
-    title: "AirDrop"
+    title: "kowly"
     width: Kirigami.Units.gridUnit * 30
     height: Kirigami.Units.gridUnit * 40
     minimumWidth: Kirigami.Units.gridUnit * 22
@@ -39,7 +39,7 @@ Kirigami.ApplicationWindow {
         onErrorOccurred: message => root.showPassiveNotification(message, "long")
         // Look around as soon as the radio is up, as a share sheet does.
         onRadioStateChanged: if (radioState === "up") scan()
-        // From Dolphin's menu, through another `owly-drop FILE...`.
+        // From Dolphin's menu, through another `kowly FILE...`.
         onFilesRequested: urls => {
             root.stageLines(urls)
             if (root.staged.length > 0 && radioState === "off")
