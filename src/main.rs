@@ -49,7 +49,8 @@ fn main() -> ExitCode {
 /// The files on the command line, as absolute paths: what isn't a flag,
 /// nor a `--dev-*` flag's value.
 fn launch_files(args: &[String]) -> Vec<String> {
-    const WITH_VALUE: [&str; 4] = ["--dev-stage", "--dev-send-to", "--dev-screenshot", "--dev-wait"];
+    const WITH_VALUE: [&str; 5] =
+        ["--dev-stage", "--dev-send-to", "--dev-screenshot", "--dev-wait", "--dev-lang"];
     let mut files = Vec::new();
     let mut skip = false;
     for arg in args {

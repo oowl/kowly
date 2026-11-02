@@ -53,8 +53,15 @@ pub mod qobject {
         fn send_files(self: &Backend, device: &QString, urls: &QString);
         #[qinvokable]
         fn answer(self: &Backend, id: i32, accept: bool);
+        /// `language`: "zh" or "en".
         #[qinvokable]
-        fn configure(self: &Backend, name: &QString, dir: &QString, auto_accept: bool);
+        fn configure(
+            self: &Backend,
+            name: &QString,
+            dir: &QString,
+            auto_accept: bool,
+            language: &QString,
+        );
         #[qinvokable]
         fn set_window_active(self: &Backend, active: bool);
         #[qinvokable]
@@ -279,7 +286,7 @@ impl qobject::Backend {
         });
     }
 
-    fn configure(&self, name: &QString, dir: &QString, auto_accept: bool) {
+    fn configure(&self, name: &QString, dir: &QString, auto_accept: bool, language: &QString) {
         let defaults = Settings::defaults();
         let name = name.to_string();
         let settings = Settings {
@@ -290,6 +297,7 @@ impl qobject::Backend {
             },
             dir: to_path(&dir.to_string()).unwrap_or(defaults.dir),
             auto_accept,
+            chinese: language.to_string() == "zh",
         };
         self.command(Command::Settings(settings));
     }

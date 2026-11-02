@@ -5,6 +5,7 @@
 
 mod bluez;
 mod engine;
+pub mod i18n;
 mod net;
 mod notify;
 mod wifi;
@@ -26,6 +27,8 @@ pub struct Settings {
     pub dir: PathBuf,
     /// Accept every request without asking.
     pub auto_accept: bool,
+    /// Say things in Chinese rather than English.
+    pub chinese: bool,
 }
 
 impl Settings {
@@ -35,6 +38,7 @@ impl Settings {
             name: hostname(),
             dir: home.join("Downloads").join("AirDrop"),
             auto_accept: false,
+            chinese: i18n::locale_is_chinese(),
         }
     }
 }

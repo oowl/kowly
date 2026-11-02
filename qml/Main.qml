@@ -23,6 +23,17 @@ Kirigami.ApplicationWindow {
     // Files waiting for a device: URL strings.
     property var staged: []
 
+    // "zh" or "en": the setting, or the system's language when it's "auto".
+    readonly property string language: settings.language === "auto"
+        ? (Qt.locale().name.startsWith("zh") ? "zh" : "en")
+        : settings.language
+
+    // The text in the current language. Bindings that call it follow a
+    // change of language at once.
+    function tr(en, zh) {
+        return language === "zh" ? zh : en
+    }
+
     Backend {
         id: backend
         onErrorOccurred: message => root.showPassiveNotification(message, "long")
@@ -45,11 +56,15 @@ Kirigami.ApplicationWindow {
         property string dir: ""
         property bool autoAccept: false
         property bool autoStart: false
+        // "auto", "zh" or "en".
+        property string language: "auto"
     }
 
     function applySettings() {
-        backend.configure(settings.name, settings.dir, settings.autoAccept)
+        backend.configure(settings.name, settings.dir, settings.autoAccept, language)
     }
+
+    onLanguageChanged: applySettings()
 
     function stage(urls) {
         let next = staged.slice()
@@ -76,11 +91,12 @@ Kirigami.ApplicationWindow {
 
     function sendTo(device, urls) {
         if (!radioUp) {
-            showPassiveNotification("先打开 AirDrop")
+            showPassiveNotification(tr("Turn AirDrop on first", "先打开 AirDrop"))
             return
         }
         if (urls.length === 0) {
-            showPassiveNotification("先把文件拖进来，或点「选择文件」")
+            showPassiveNotification(tr("Drop files here first, or click “Choose Files”",
+                                       "先把文件拖进来，或点「选择文件」"))
             return
         }
         backend.sendFiles(device.id, urls.join("\n"))
@@ -107,27 +123,31 @@ Kirigami.ApplicationWindow {
     }
 
     function phaseText(t) {
+        const sending = t.direction === "send"
         switch (t.phase) {
-        case "waking": return "正在唤醒对方…"
-        case "asking": return t.direction === "send" ? "等待对方接受…" : "等待你确认"
-        case "transferring": return t.direction === "send" ? "正在发送" : "正在接收"
-        case "done": return t.direction === "send" ? "已发送" : "已接收"
-        case "declined": return "已拒绝"
-        case "withdrawn": return "已取消"
-        case "failed": return "失败"
+        case "waking": return tr("Waking the receiver…", "正在唤醒对方…")
+        case "asking": return sending ? tr("Waiting for them to accept…", "等待对方接受…")
+                                      : tr("Waiting for you", "等待你确认")
+        case "transferring": return sending ? tr("Sending", "正在发送") : tr("Receiving", "正在接收")
+        case "done": return sending ? tr("Sent", "已发送") : tr("Received", "已接收")
+        case "declined": return tr("Declined", "已拒绝")
+        case "withdrawn": return tr("Cancelled", "已取消")
+        case "failed": return tr("Failed", "失败")
         }
         return t.phase
     }
 
     function radioText() {
         switch (backend.radioState) {
-        case "starting": return "正在启动，接管无线网卡…"
-        case "stopping": return "正在关闭，归还无线网卡…"
+        case "starting": return tr("Starting, taking over the Wi-Fi card…", "正在启动，接管无线网卡…")
+        case "stopping": return tr("Stopping, giving the Wi-Fi card back…", "正在关闭，归还无线网卡…")
         case "up":
-            return "已开启 · " + backend.radioDetail
-                + (backend.manual ? "" : " · 附近 AWDL 设备 " + backend.peerCount)
+            return tr("On", "已开启") + " · " + backend.radioDetail
+                + (backend.manual ? "" : " · " + tr("AWDL peers nearby: ", "附近 AWDL 设备 ") + backend.peerCount)
         }
-        return backend.radioDetail.length > 0 ? "已关闭：" + backend.radioDetail : "已关闭"
+        return backend.radioDetail.length > 0
+            ? tr("Off: ", "已关闭：") + backend.radioDetail
+            : tr("Off", "已关闭")
     }
 
     onActiveChanged: backend.setWindowActive(active)
@@ -137,6 +157,9 @@ Kirigami.ApplicationWindow {
             settings.name = backend.defaultName()
         if (settings.dir.length === 0)
             settings.dir = backend.defaultDir()
+        const lang = devArg("--dev-lang")
+        if (lang)
+            settings.language = lang
         applySettings()
         backend.setWindowActive(active)
         stageLines(backend.takeLaunchFiles())
@@ -150,8 +173,9 @@ Kirigami.ApplicationWindow {
             screenshotTimer.start()
     }
 
-    // For testing: `--dev-up`, `--dev-stage FILE`, `--dev-send-to NAME`
-    // and `--dev-screenshot PATH` (taken after `--dev-wait` ms).
+    // For testing: `--dev-up`, `--dev-stage FILE`, `--dev-send-to NAME`,
+    // `--dev-lang zh|en` and `--dev-screenshot PATH` (taken after
+    // `--dev-wait` ms).
     function devArg(name) {
         const args = Qt.application.arguments
         const i = args.indexOf(name)
@@ -179,20 +203,20 @@ Kirigami.ApplicationWindow {
 
     FileDialog {
         id: fileDialog
-        title: "选择要发送的文件"
+        title: root.tr("Choose Files to Send", "选择要发送的文件")
         fileMode: FileDialog.OpenFiles
         onAccepted: root.stage(selectedFiles)
     }
 
     FolderDialog {
         id: folderDialog
-        title: "接收的文件保存到"
+        title: root.tr("Save Received Files To", "接收的文件保存到")
         onAccepted: dirField.text = backend.localPath(selectedFolder.toString())
     }
 
     QQC2.Dialog {
         id: settingsDialog
-        title: "设置"
+        title: root.tr("Settings", "设置")
         modal: true
         anchors.centerIn: QQC2.Overlay.overlay
         width: Math.min(root.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 26)
@@ -203,12 +227,14 @@ Kirigami.ApplicationWindow {
             dirField.text = settings.dir
             autoAcceptBox.checked = settings.autoAccept
             autoStartBox.checked = settings.autoStart
+            languageBox.currentIndex = languageBox.indexOfValue(settings.language)
         }
         onAccepted: {
             settings.name = nameField.text.trim().length > 0 ? nameField.text.trim() : backend.defaultName()
             settings.dir = dirField.text.trim().length > 0 ? dirField.text.trim() : backend.defaultDir()
             settings.autoAccept = autoAcceptBox.checked
             settings.autoStart = autoStartBox.checked
+            settings.language = languageBox.currentValue
             root.applySettings()
         }
 
@@ -217,11 +243,11 @@ Kirigami.ApplicationWindow {
 
             QQC2.TextField {
                 id: nameField
-                Kirigami.FormData.label: "显示名称："
+                Kirigami.FormData.label: root.tr("Name:", "显示名称：")
                 placeholderText: backend.defaultName()
             }
             RowLayout {
-                Kirigami.FormData.label: "保存到："
+                Kirigami.FormData.label: root.tr("Save to:", "保存到：")
                 QQC2.TextField {
                     id: dirField
                     Layout.fillWidth: true
@@ -229,19 +255,34 @@ Kirigami.ApplicationWindow {
                 QQC2.Button {
                     icon.name: "document-open-folder"
                     onClicked: folderDialog.open()
-                    QQC2.ToolTip.text: "选择文件夹"
+                    QQC2.ToolTip.text: root.tr("Choose Folder", "选择文件夹")
                     QQC2.ToolTip.visible: hovered
                 }
             }
             QQC2.CheckBox {
                 id: autoAcceptBox
-                Kirigami.FormData.label: "接收："
-                text: "自动接受所有文件（不询问）"
+                Kirigami.FormData.label: root.tr("Receiving:", "接收：")
+                text: root.tr("Accept all files without asking", "自动接受所有文件（不询问）")
             }
             QQC2.CheckBox {
                 id: autoStartBox
-                Kirigami.FormData.label: "启动："
-                text: "打开程序时自动开启 AirDrop"
+                Kirigami.FormData.label: root.tr("Startup:", "启动：")
+                text: root.tr("Turn AirDrop on when the app opens", "打开程序时自动开启 AirDrop")
+            }
+            QQC2.ComboBox {
+                id: languageBox
+                Kirigami.FormData.label: root.tr("Language:", "语言：")
+                // Fixed: Breeze sizes a combo box by its items' text, which
+                // changes with the language, and loops.
+                implicitWidth: Kirigami.Units.gridUnit * 9
+                textRole: "text"
+                valueRole: "value"
+                // Each language names itself, as language menus do.
+                model: [
+                    { text: root.tr("System", "跟随系统"), value: "auto" },
+                    { text: "中文", value: "zh" },
+                    { text: "English", value: "en" },
+                ]
             }
         }
     }
@@ -252,7 +293,7 @@ Kirigami.ApplicationWindow {
 
         actions: [
             Kirigami.Action {
-                text: "设置"
+                text: root.tr("Settings", "设置")
                 icon.name: "configure"
                 onTriggered: settingsDialog.open()
             }
@@ -276,7 +317,8 @@ Kirigami.ApplicationWindow {
                         spacing: 0
                         Kirigami.Heading {
                             level: 3
-                            text: "以「" + settings.name + "」可被发现"
+                            text: root.tr("Visible as “" + settings.name + "”",
+                                          "以「" + settings.name + "」可被发现")
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -318,7 +360,8 @@ Kirigami.ApplicationWindow {
                             }
                             Kirigami.Heading {
                                 level: 3
-                                text: modelData.sender + " 想给你发送"
+                                text: root.tr(modelData.sender + " wants to send you",
+                                              modelData.sender + " 想给你发送")
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -344,12 +387,12 @@ Kirigami.ApplicationWindow {
                         RowLayout {
                             Layout.alignment: Qt.AlignRight
                             QQC2.Button {
-                                text: "拒绝"
+                                text: root.tr("Decline", "拒绝")
                                 icon.name: "dialog-cancel"
                                 onClicked: backend.answer(modelData.id, false)
                             }
                             QQC2.Button {
-                                text: "接受"
+                                text: root.tr("Accept", "接受")
                                 icon.name: "dialog-ok-apply"
                                 highlighted: true
                                 onClicked: backend.answer(modelData.id, true)
@@ -402,10 +445,12 @@ Kirigami.ApplicationWindow {
                     }
                     QQC2.Label {
                         text: root.staged.length === 0
-                            ? "把文件拖到这里"
-                            : "待发送 " + root.staged.length + " 个文件，点下面的设备发送"
+                            ? root.tr("Drop files here", "把文件拖到这里")
+                            : root.tr(root.staged.length + " file(s) ready: click a device below to send",
+                                      "待发送 " + root.staged.length + " 个文件，点下面的设备发送")
                         font.bold: root.staged.length > 0
                         horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
                     Repeater {
@@ -426,7 +471,7 @@ Kirigami.ApplicationWindow {
                             QQC2.ToolButton {
                                 icon.name: "list-remove"
                                 onClicked: root.unstage(modelData)
-                                QQC2.ToolTip.text: "移除"
+                                QQC2.ToolTip.text: root.tr("Remove", "移除")
                                 QQC2.ToolTip.visible: hovered
                             }
                         }
@@ -434,12 +479,14 @@ Kirigami.ApplicationWindow {
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         QQC2.Button {
-                            text: root.staged.length === 0 ? "选择文件…" : "添加文件…"
+                            text: root.staged.length === 0
+                                ? root.tr("Choose Files…", "选择文件…")
+                                : root.tr("Add Files…", "添加文件…")
                             icon.name: "list-add"
                             onClicked: fileDialog.open()
                         }
                         QQC2.Button {
-                            text: "清空"
+                            text: root.tr("Clear", "清空")
                             icon.name: "edit-clear-all"
                             visible: root.staged.length > 0
                             onClicked: root.staged = []
@@ -454,7 +501,7 @@ Kirigami.ApplicationWindow {
                 Layout.topMargin: Kirigami.Units.largeSpacing
                 Kirigami.Heading {
                     level: 2
-                    text: "附近的设备"
+                    text: root.tr("Nearby", "附近的设备")
                     Layout.fillWidth: true
                 }
                 QQC2.BusyIndicator {
@@ -463,7 +510,7 @@ Kirigami.ApplicationWindow {
                     Layout.preferredHeight: Kirigami.Units.iconSizes.medium
                 }
                 QQC2.Button {
-                    text: backend.scanning ? "扫描中…" : "扫描"
+                    text: backend.scanning ? root.tr("Scanning…", "扫描中…") : root.tr("Scan", "扫描")
                     icon.name: "view-refresh"
                     enabled: root.radioUp && !backend.scanning
                     onClicked: backend.scan()
@@ -474,10 +521,13 @@ Kirigami.ApplicationWindow {
                 Layout.fillWidth: true
                 visible: root.devices.length === 0
                 icon.name: root.radioUp ? "smartphone" : "network-wireless-disconnected"
-                text: root.radioUp ? (backend.scanning ? "正在寻找…" : "还没有发现设备") : "AirDrop 未开启"
+                text: root.radioUp
+                    ? (backend.scanning ? root.tr("Looking…", "正在寻找…") : root.tr("No devices found yet", "还没有发现设备"))
+                    : root.tr("AirDrop is off", "AirDrop 未开启")
                 explanation: root.radioUp
-                    ? "确保 iPhone 已解锁，并把 AirDrop 设为「所有人（10 分钟）」，然后点「扫描」。"
-                    : "打开上面的开关后才能收发文件。"
+                    ? root.tr("Unlock the iPhone and set its AirDrop to Everyone for 10 Minutes, then click Scan.",
+                              "确保 iPhone 已解锁，并把 AirDrop 设为「所有人（10 分钟）」，然后点「扫描」。")
+                    : root.tr("Turn on the switch above to send and receive.", "打开上面的开关后才能收发文件。")
             }
 
             Flow {
@@ -496,8 +546,10 @@ Kirigami.ApplicationWindow {
                         onClicked: root.sendTo(modelData, root.staged)
 
                         QQC2.ToolTip.text: root.staged.length > 0
-                            ? "把 " + root.staged.length + " 个文件发给 " + modelData.name
-                            : "把文件拖到这里，直接发给 " + modelData.name
+                            ? root.tr("Send " + root.staged.length + " file(s) to " + modelData.name,
+                                      "把 " + root.staged.length + " 个文件发给 " + modelData.name)
+                            : root.tr("Drop files here to send them to " + modelData.name,
+                                      "把文件拖到这里，直接发给 " + modelData.name)
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
@@ -553,11 +605,11 @@ Kirigami.ApplicationWindow {
                 visible: root.transfers.length > 0
                 Kirigami.Heading {
                     level: 2
-                    text: "传输记录"
+                    text: root.tr("Transfers", "传输记录")
                     Layout.fillWidth: true
                 }
                 QQC2.Button {
-                    text: "清除已完成"
+                    text: root.tr("Clear Finished", "清除已完成")
                     icon.name: "edit-clear-history"
                     onClicked: backend.clearFinished()
                 }
@@ -593,7 +645,9 @@ Kirigami.ApplicationWindow {
                                     Layout.fillWidth: true
                                 }
                                 QQC2.Label {
-                                    text: (modelData.direction === "send" ? "发给 " : "来自 ") + modelData.peer
+                                    text: (modelData.direction === "send"
+                                            ? root.tr("To ", "发给 ") : root.tr("From ", "来自 "))
+                                        + modelData.peer
                                         + " · " + root.phaseText(modelData)
                                         + (modelData.total > 0 && transferCard.active
                                             ? " · " + root.formatSize(modelData.sent) + " / " + root.formatSize(modelData.total)
@@ -610,7 +664,7 @@ Kirigami.ApplicationWindow {
                                     && modelData.paths.length === 1
                                 icon.name: "document-open"
                                 onClicked: backend.openPath(modelData.paths[0])
-                                QQC2.ToolTip.text: "打开"
+                                QQC2.ToolTip.text: root.tr("Open", "打开")
                                 QQC2.ToolTip.visible: hovered
                             }
                             QQC2.ToolButton {
@@ -618,7 +672,7 @@ Kirigami.ApplicationWindow {
                                     && modelData.paths.length > 0
                                 icon.name: "folder-open"
                                 onClicked: backend.revealPath(modelData.paths[0])
-                                QQC2.ToolTip.text: "在文件夹中显示"
+                                QQC2.ToolTip.text: root.tr("Show in Folder", "在文件夹中显示")
                                 QQC2.ToolTip.visible: hovered
                             }
                         }

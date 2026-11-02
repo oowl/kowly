@@ -26,6 +26,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use super::net::{self, Interface, Listed, RECEIVE_PORT};
+use super::i18n::{self, tr};
 use super::notify::{self, Notifier};
 use super::wifi;
 use super::{
@@ -137,6 +138,7 @@ impl Engine {
         commands: mpsc::UnboundedSender<Command>,
     ) -> Engine {
         let (inner, inner_rx) = mpsc::unbounded_channel();
+        i18n::set_chinese(options.settings.chinese);
         let notifier = if options.notify {
             Notifier::connect(commands)
                 .await
@@ -244,7 +246,7 @@ impl Engine {
                     .and_then(|l| l.lease.as_ref())
                     .is_some_and(|l| l.lease == lease);
                 if ours {
-                    self.error(format!("radio 已关闭：{reason}"));
+                    self.error(tr!("The radio went down: {reason}", "radio 已关闭：{reason}"));
                     self.radio_down(false, reason).await;
                 }
             }
@@ -259,7 +261,7 @@ impl Engine {
                 self.devices.insert(id, listed);
                 self.emit(Update::Device(device));
             }
-            Inner::ScanFailed(e) => self.error(format!("扫描出错：{e}")),
+            Inner::ScanFailed(e) => self.error(tr!("Scanning failed: {e}", "扫描出错：{e}")),
             Inner::ScanDone => {
                 self.scan = None;
                 self.emit(Update::Scanning(false));
@@ -309,7 +311,7 @@ impl Engine {
         });
         self.start_receiver()
             .await
-            .map_err(|e| format!("接收服务启动失败：{e}"))?;
+            .map_err(|e| tr!("Couldn't start receiving: {e}", "接收服务启动失败：{e}"))?;
         self.set_state(RadioState::Up, detail);
         Ok(())
     }
@@ -329,7 +331,8 @@ impl Engine {
             .await
             .unwrap_or_default();
         let (lease, link) = radio.acquire(0).await.map_err(|e| describe(&e))?;
-        let link = LinkInfo::from_dict(&link).ok_or("owlyd 没有给出链路信息")?;
+        let link = LinkInfo::from_dict(&link)
+            .ok_or_else(|| tr!("owlyd gave no link", "owlyd 没有给出链路信息"))?;
         let inner = self.inner.clone();
         let watcher = tokio::spawn(async move {
             // Keeps the proxy, and so the stream's cache, alive.
@@ -373,7 +376,7 @@ impl Engine {
             return;
         }
         self.set_state(RadioState::Stopping, "");
-        self.stop_work("AirDrop 已关闭").await;
+        self.stop_work(&tr!("AirDrop was turned off", "AirDrop 已关闭")).await;
         if let Some(Link {
             lease: Some(lease), ..
         }) = self.link.take()
@@ -504,7 +507,10 @@ impl Engine {
                 }
                 self.update_received(id, |t| {
                     t.phase = Phase::Withdrawn;
-                    t.detail = "对方已取消，或等待超时".into();
+                    t.detail = tr!(
+                        "The sender cancelled, or the request timed out",
+                        "对方已取消，或等待超时"
+                    );
                 });
             }
             // SEC-4: links are shown, never opened by themselves.
@@ -580,11 +586,12 @@ impl Engine {
         } else {
             match &self.notifier {
                 Some(n) => {
+                    let (accept, decline) = (tr!("Accept", "接受"), tr!("Decline", "拒绝"));
                     n.show(
-                        &format!("{} 想给你发送", incoming.sender),
+                        &tr!("{} wants to send you", "{} 想给你发送", incoming.sender),
                         &notify::escape(&title),
                         "document-send",
-                        &[("accept", "接受"), ("decline", "拒绝")],
+                        &[("accept", &accept), ("decline", &decline)],
                         true,
                     )
                     .await
@@ -632,13 +639,14 @@ impl Engine {
         let Some(notifier) = &self.notifier else {
             return;
         };
-        let (summary, actions): (String, &[(&str, &str)]) = if t.urls.is_empty() {
+        let (open_file, open_dir) = (tr!("Open", "打开"), tr!("Open Folder", "打开文件夹"));
+        let (summary, actions): (String, Vec<(&str, &str)>) = if t.urls.is_empty() {
             (
-                format!("已收到来自 {} 的文件", t.peer),
-                &[("default", "打开"), ("open", "打开文件夹")],
+                tr!("Received files from {}", "已收到来自 {} 的文件", t.peer),
+                vec![("default", &open_file), ("open", &open_dir)],
             )
         } else {
-            (format!("已收到来自 {} 的链接", t.peer), &[])
+            (tr!("Received links from {}", "已收到来自 {} 的链接", t.peer), Vec::new())
         };
         let body = if t.urls.is_empty() {
             t.title.clone()
@@ -646,7 +654,7 @@ impl Engine {
             t.urls.join("\n")
         };
         let id = notifier
-            .show(&summary, &notify::escape(&body), "document-save", actions, false)
+            .show(&summary, &notify::escape(&body), "document-save", &actions, false)
             .await;
         if let Some(id) = id {
             let dir = file
@@ -689,6 +697,7 @@ impl Engine {
     }
 
     async fn change_settings(&mut self, settings: Settings) {
+        i18n::set_chinese(settings.chinese);
         let restart = settings.name != self.settings.name || settings.dir != self.settings.dir;
         if settings.name != self.settings.name {
             match net::new_sender(&settings.name) {
@@ -698,9 +707,9 @@ impl Engine {
         }
         self.settings = settings;
         if restart && self.receiver.is_some() {
-            self.stop_receiver("设置已更改").await;
+            self.stop_receiver(&tr!("Settings changed", "设置已更改")).await;
             if let Err(e) = self.start_receiver().await {
-                self.error(format!("接收服务重启失败：{e}"));
+                self.error(tr!("Couldn't restart receiving: {e}", "接收服务重启失败：{e}"));
             }
         }
     }
@@ -709,7 +718,7 @@ impl Engine {
 
     fn start_scan(&mut self, seconds: u64) {
         let Some(link) = &self.link else {
-            self.error("先打开 AirDrop");
+            self.error(tr!("Turn AirDrop on first", "先打开 AirDrop"));
             return;
         };
         if self.scan.is_some() {
@@ -749,11 +758,11 @@ impl Engine {
 
     fn send(&mut self, device: String, paths: Vec<PathBuf>) {
         if self.link.is_none() {
-            self.error("先打开 AirDrop");
+            self.error(tr!("Turn AirDrop on first", "先打开 AirDrop"));
             return;
         }
         let Some(target) = self.devices.get(&device).cloned() else {
-            self.error("找不到这个设备了，请重新扫描");
+            self.error(tr!("That device is gone; scan again", "找不到这个设备了，请重新扫描"));
             return;
         };
         let paths: Vec<PathBuf> = paths
@@ -764,7 +773,7 @@ impl Engine {
             return;
         }
         if let Some(missing) = paths.iter().find(|p| !p.exists()) {
-            self.error(format!("文件不存在：{}", missing.display()));
+            self.error(tr!("No such file: {}", "文件不存在：{}", missing.display()));
             return;
         }
         self.next_send += 1;
@@ -792,11 +801,17 @@ impl Engine {
             match net::knock(&sender, target.addr, Duration::from_secs(30)).await {
                 Ok(Some(_)) => {}
                 Ok(None) => {
-                    report.fail("对方不接收本机：请把 iPhone 的 AirDrop 设为「所有人（10 分钟）」");
+                    report.fail(tr!(
+                        "The receiver doesn't take files from this computer: set the iPhone's AirDrop to Everyone for 10 Minutes",
+                        "对方不接收本机：请把 iPhone 的 AirDrop 设为「所有人（10 分钟）」"
+                    ));
                     return;
                 }
                 Err(e) => {
-                    report.fail(format!("对方没有响应（{e}），请确认 iPhone 已解锁"));
+                    report.fail(tr!(
+                        "The receiver didn't answer ({e}); is the iPhone unlocked?",
+                        "对方没有响应（{e}），请确认 iPhone 已解锁"
+                    ));
                     return;
                 }
             }
@@ -829,7 +844,7 @@ impl Engine {
                 }),
                 Ok(Outcome::Declined) => report.update(|t| {
                     t.phase = Phase::Declined;
-                    t.detail = "对方拒绝了，或没有及时回应".into();
+                    t.detail = tr!("Declined, or no answer in time", "对方拒绝了，或没有及时回应");
                 }),
                 Ok(Outcome::Failed(reason)) => report.fail(reason),
                 Err(e) => report.fail(e.to_string()),
@@ -867,7 +882,7 @@ impl Report {
 impl Drop for Report {
     fn drop(&mut self) {
         if !self.transfer.phase.finished() {
-            self.fail("已取消");
+            self.fail(tr!("Cancelled", "已取消"));
         }
     }
 }
@@ -890,13 +905,19 @@ async fn wake() -> Option<super::bluez::Registration> {
 fn describe(e: &zbus::Error) -> String {
     if let Some((kind, message)) = api::api_error(e) {
         return match kind {
-            "NotAuthorized" => format!("没有权限使用 radio（polkit）：{message}"),
+            "NotAuthorized" => tr!(
+                "Not allowed to use the radio (polkit): {message}",
+                "没有权限使用 radio（polkit）：{message}"
+            ),
             _ => message,
         };
     }
     if api::unreachable(e) {
         // owlyd starts on demand (D-Bus activation), so missing means not installed.
-        return "连不上 owlyd：请先安装 owly（yay -S owly）".into();
+        return tr!(
+            "Can't reach owlyd: install Owly first (yay -S owly)",
+            "连不上 owlyd：请先安装 owly（yay -S owly）"
+        );
     }
     e.to_string()
 }
@@ -921,16 +942,16 @@ fn describe_paths(paths: &[PathBuf]) -> String {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default(),
-        many => format!("{} 个文件", many.len()),
+        many => tr!("{} files", "{} 个文件", many.len()),
     }
 }
 
 fn describe_offer(incoming: &Incoming) -> String {
     match (incoming.items.as_slice(), incoming.urls.len()) {
-        ([], 1) => "1 个链接".into(),
-        ([], n) => format!("{n} 个链接"),
+        ([], 1) => tr!("1 link", "1 个链接"),
+        ([], n) => tr!("{n} links", "{n} 个链接"),
         ([one], _) => one.name.clone(),
-        (many, _) => format!("{} 个文件", many.len()),
+        (many, _) => tr!("{} files", "{} 个文件", many.len()),
     }
 }
 
