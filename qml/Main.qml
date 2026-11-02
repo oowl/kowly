@@ -160,6 +160,9 @@ Kirigami.ApplicationWindow {
         const lang = devArg("--dev-lang")
         if (lang)
             settings.language = lang
+        const name = devArg("--dev-name")
+        if (name)
+            settings.name = name
         applySettings()
         backend.setWindowActive(active)
         stageLines(backend.takeLaunchFiles())
@@ -174,8 +177,8 @@ Kirigami.ApplicationWindow {
     }
 
     // For testing: `--dev-up`, `--dev-stage FILE`, `--dev-send-to NAME`,
-    // `--dev-lang zh|en` and `--dev-screenshot PATH` (taken after
-    // `--dev-wait` ms).
+    // `--dev-lang zh|en`, `--dev-name NAME` and `--dev-screenshot PATH`
+    // (taken after `--dev-wait` ms).
     function devArg(name) {
         const args = Qt.application.arguments
         const i = args.indexOf(name)
