@@ -1,0 +1,35 @@
+[package]
+name = "owly-drop"
+description = "kowly: AirDrop for KDE Plasma, on Owly."
+repository = "https://github.com/oowl/kowly"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+cxx = "1.0.95"
+cxx-qt = "0.10"
+cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
+futures-util = { version = "0.3", default-features = false }
+getrandom = "0.3"
+nix = { version = "0.31", default-features = false, features = ["hostname", "net"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+# Owly, pinned: the published crates lag the repo, and owlyd isn't published.
+owly-airdrop = { git = "https://github.com/t4t5/owly", rev = "0f2ca4087e6d938d823e76c856fcd04d0a0162b6", features = ["mdns"] }
+owly-awdl = { git = "https://github.com/t4t5/owly", rev = "0f2ca4087e6d938d823e76c856fcd04d0a0162b6" }
+owly-radio = { git = "https://github.com/t4t5/owly", rev = "0f2ca4087e6d938d823e76c856fcd04d0a0162b6" }
+owlyd = { git = "https://github.com/t4t5/owly", rev = "0f2ca4087e6d938d823e76c856fcd04d0a0162b6" }
+
+[build-dependencies]
+cxx-qt-build = "0.10"
+
+[profile.release]
+lto = "thin"

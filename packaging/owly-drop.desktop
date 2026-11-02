@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=AirDrop
+GenericName=AirDrop for iPhone
+Comment=Send files to and from iPhones, on Owly
+Comment[zh_CN]=与 iPhone 互传文件（基于 Owly）
+Exec=owly-drop %F
+Icon=network-wireless-hotspot
+Terminal=false
+Categories=Qt;KDE;Network;FileTransfer;
+Keywords=airdrop;iphone;ios;apple;owly;share;
+StartupNotify=true
