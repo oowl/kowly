@@ -19,8 +19,11 @@ trap '[ -n "$rx" ] && kill $rx 2>/dev/null; rm -rf "$work"' EXIT
 veth_pair owa owb
 echo "veth pair up"
 
-# Keep the test's TLS identity and Bluetooth out of the user's.
-export XDG_STATE_HOME="$work/state" KOWLY_NO_BLE=1
+# Keep everything the runs write, the TLS identity and default download
+# folders included, and Bluetooth, out of the user's. HOME may not be
+# writable in the namespace, as on CI, where it belongs to the runner.
+export HOME="$work/home" XDG_STATE_HOME="$work/state" KOWLY_NO_BLE=1
+mkdir -p "$HOME"
 head -c 3000000 /dev/urandom > "$work/photo.bin"
 failed=0
 
