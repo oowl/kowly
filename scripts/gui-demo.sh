@@ -19,17 +19,10 @@ bin=${BIN:-$here/target/debug/kowly}
 work=$(mktemp -d)
 trap 'kill $peer 2>/dev/null || true; rm -rf "$work"' EXIT
 
-ip link set lo up
 # The GUI's end is awdl0, as under owlyd, so the screenshots read as they
 # would on a real radio; the headless peer's is peer0.
-ip link add awdl0 type veth peer name peer0
-for i in awdl0 peer0; do
-    echo 0 > /proc/sys/net/ipv6/conf/$i/accept_dad
-    ip link set $i up
-done
-for i in awdl0 peer0; do
-    until ip -6 addr show dev $i | grep -q 'fe80.*scope link'; do sleep 0.1; done
-done
+. "$here/scripts/veth-lib.sh"
+veth_pair awdl0 peer0
 
 # Everything the runs write stays in $work.
 export HOME="$work/home" XDG_CONFIG_HOME="$work/config" XDG_STATE_HOME="$work/state"
@@ -46,7 +39,7 @@ rm -rf "$work/phone"
 "$bin" --headless receive --iface peer0 --name "Alex's iPhone" --dir "$work/phone" --accept \
     > "$work/peer.log" 2>&1 &
 peer=$!
-until grep -q '^radio up' "$work/peer.log"; do sleep 0.1; done
+wait_for 30 "headless peer" grep -q '^radio up' "$work/peer.log"
 KOWLY_IFACE=awdl0 "$bin" --dev-lang $lang --dev-name "$name" --dev-up --dev-stage "$work/IMG_0042.HEIC" \
     --dev-send-to "Alex's iPhone" --dev-screenshot "$out/send-$lang.png" --dev-wait 6000
 kill $peer; wait $peer 2>/dev/null || true

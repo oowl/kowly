@@ -15,15 +15,9 @@ work=$(mktemp -d)
 rx=
 trap '[ -n "$rx" ] && kill $rx 2>/dev/null; rm -rf "$work"' EXIT
 
-ip link set lo up
-ip link add owa type veth peer name owb
-for i in owa owb; do
-    echo 0 > /proc/sys/net/ipv6/conf/$i/accept_dad
-    ip link set $i up
-done
-for i in owa owb; do
-    until ip -6 addr show dev $i | grep -q 'fe80.*scope link'; do sleep 0.1; done
-done
+. "$here/scripts/veth-lib.sh"
+veth_pair owa owb
+echo "veth pair up"
 
 # Keep the test's TLS identity and Bluetooth out of the user's.
 export XDG_STATE_HOME="$work/state" KOWLY_NO_BLE=1
@@ -37,11 +31,19 @@ case_() {
     "$bin" --headless receive --iface owb --name "Test Receiver" --dir "$work/in" $flags --once \
         > "$work/rx.log" 2>&1 &
     rx=$!
-    until grep -q '^radio up' "$work/rx.log"; do sleep 0.1; done
+    if ! wait_for 30 "receiver" grep -q '^radio up' "$work/rx.log"; then
+        sed 's/^/  rx| /' "$work/rx.log"
+        failed=1
+        kill $rx 2>/dev/null
+        rx=
+        return
+    fi
     got=0
-    "$bin" --headless send --iface owa --name "Test Sender" --to "Test Receiver" --seconds 15 \
+    timeout 60 "$bin" --headless send --iface owa --name "Test Sender" --to "Test Receiver" --seconds 15 \
         "$work/photo.bin" > "$work/tx.log" 2>&1 || got=$?
-    wait $rx || true
+    # The receiver ends after one transfer, or never if none began.
+    stop_after 15 $rx
+    wait $rx 2>/dev/null || true
     rx=
     if [ -f "$work/in/photo.bin" ] && cmp -s "$work/photo.bin" "$work/in/photo.bin"; then arrived=yes; else arrived=no; fi
     last=$(grep '^transfer' "$work/tx.log" | tail -1 | sed 's/.*"phase":"\([a-z]*\)".*/\1/')

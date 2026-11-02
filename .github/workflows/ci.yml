@@ -58,6 +58,7 @@ jobs:
         run: cargo build --locked
 
       - name: Send and receive end to end
+        timeout-minutes: 10
         run: scripts/veth-test.sh
 
   metadata:
