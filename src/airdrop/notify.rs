@@ -9,8 +9,8 @@ use zbus::zvariant::Value;
 
 use super::Command;
 
-/// The desktop file's name, which is also the Wayland app id: the binary's.
-pub const APP_ID: &str = "owly-drop";
+/// The app id: the desktop file's name, and the window's on Wayland.
+pub const APP_ID: &str = "io.github.oowl.kowly";
 
 #[zbus::proxy(
     interface = "org.freedesktop.Notifications",
@@ -80,7 +80,7 @@ impl Notifier {
         let timeout = if urgent { 0 } else { -1 };
         match self
             .proxy
-            .notify("AirDrop", 0, icon, summary, body, &actions, hints, timeout)
+            .notify("kowly", 0, icon, summary, body, &actions, hints, timeout)
             .await
         {
             Ok(id) => Some(id),

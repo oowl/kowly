@@ -9,8 +9,8 @@ use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QUrl};
 use tokio::sync::mpsc;
 
-use crate::single;
 use crate::airdrop::{self, Command, Device, Incoming, Options, Settings, Transfer, Update};
+use crate::single;
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -37,7 +37,7 @@ pub mod qobject {
     extern "RustQt" {
         #[qsignal]
         fn error_occurred(self: Pin<&mut Backend>, message: QString);
-        /// Files to send from outside: another `owly-drop FILE...`, as
+        /// Files to send from outside: another `kowly FILE...`, as
         /// from Dolphin. URLs, one per line.
         #[qsignal]
         fn files_requested(self: Pin<&mut Backend>, urls: QString);
@@ -136,9 +136,9 @@ impl Default for BackendRust {
     }
 }
 
-/// `OWLY_DROP_IFACE`: run on this interface without owlyd.
+/// `KOWLY_IFACE`: run on this interface without owlyd.
 fn manual_iface() -> Option<String> {
-    std::env::var("OWLY_DROP_IFACE").ok().filter(|s| !s.is_empty())
+    std::env::var("KOWLY_IFACE").ok().filter(|s| !s.is_empty())
 }
 
 impl cxx_qt::Initialize for qobject::Backend {

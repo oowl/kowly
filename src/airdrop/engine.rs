@@ -25,8 +25,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-use super::net::{self, Interface, Listed, RECEIVE_PORT};
 use super::i18n::{self, tr};
+use super::net::{self, Interface, Listed, RECEIVE_PORT};
 use super::notify::{self, Notifier};
 use super::wifi;
 use super::{
@@ -150,7 +150,7 @@ impl Engine {
         let sender = net::new_sender(&options.settings.name).expect("a sender");
         Engine {
             manual_iface: options.manual_iface,
-            no_ble: std::env::var_os("OWLY_DROP_NO_BLE").is_some(),
+            no_ble: std::env::var_os("KOWLY_NO_BLE").is_some(),
             settings: options.settings,
             updates,
             inner,
@@ -246,7 +246,10 @@ impl Engine {
                     .and_then(|l| l.lease.as_ref())
                     .is_some_and(|l| l.lease == lease);
                 if ours {
-                    self.error(tr!("The radio went down: {reason}", "radio 已关闭：{reason}"));
+                    self.error(tr!(
+                        "The radio went down: {reason}",
+                        "radio 已关闭：{reason}"
+                    ));
                     self.radio_down(false, reason).await;
                 }
             }
@@ -376,7 +379,8 @@ impl Engine {
             return;
         }
         self.set_state(RadioState::Stopping, "");
-        self.stop_work(&tr!("AirDrop was turned off", "AirDrop 已关闭")).await;
+        self.stop_work(&tr!("AirDrop was turned off", "AirDrop 已关闭"))
+            .await;
         if let Some(Link {
             lease: Some(lease), ..
         }) = self.link.take()
@@ -410,7 +414,10 @@ impl Engine {
     // Receiving.
 
     async fn start_receiver(&mut self) -> io::Result<()> {
-        let link = self.link.as_ref().ok_or_else(|| io::Error::other("no link"))?;
+        let link = self
+            .link
+            .as_ref()
+            .ok_or_else(|| io::Error::other("no link"))?;
         std::fs::create_dir_all(&self.settings.dir)?;
         let identity = Identity::load_or_generate(&state_dir()?)?;
         let config = Config::new(self.settings.name.clone());
@@ -575,7 +582,11 @@ impl Engine {
             t.peer = peer;
             t.title = title.clone();
             t.total = total;
-            t.phase = if auto { Phase::Transferring } else { Phase::Asking };
+            t.phase = if auto {
+                Phase::Transferring
+            } else {
+                Phase::Asking
+            };
         });
         if auto {
             request.accept();
@@ -646,7 +657,10 @@ impl Engine {
                 vec![("default", &open_file), ("open", &open_dir)],
             )
         } else {
-            (tr!("Received links from {}", "已收到来自 {} 的链接", t.peer), Vec::new())
+            (
+                tr!("Received links from {}", "已收到来自 {} 的链接", t.peer),
+                Vec::new(),
+            )
         };
         let body = if t.urls.is_empty() {
             t.title.clone()
@@ -654,7 +668,13 @@ impl Engine {
             t.urls.join("\n")
         };
         let id = notifier
-            .show(&summary, &notify::escape(&body), "document-save", &actions, false)
+            .show(
+                &summary,
+                &notify::escape(&body),
+                "document-save",
+                &actions,
+                false,
+            )
             .await;
         if let Some(id) = id {
             let dir = file
@@ -707,9 +727,13 @@ impl Engine {
         }
         self.settings = settings;
         if restart && self.receiver.is_some() {
-            self.stop_receiver(&tr!("Settings changed", "设置已更改")).await;
+            self.stop_receiver(&tr!("Settings changed", "设置已更改"))
+                .await;
             if let Err(e) = self.start_receiver().await {
-                self.error(tr!("Couldn't restart receiving: {e}", "接收服务重启失败：{e}"));
+                self.error(tr!(
+                    "Couldn't restart receiving: {e}",
+                    "接收服务重启失败：{e}"
+                ));
             }
         }
     }
@@ -762,7 +786,10 @@ impl Engine {
             return;
         }
         let Some(target) = self.devices.get(&device).cloned() else {
-            self.error(tr!("That device is gone; scan again", "找不到这个设备了，请重新扫描"));
+            self.error(tr!(
+                "That device is gone; scan again",
+                "找不到这个设备了，请重新扫描"
+            ));
             return;
         };
         let paths: Vec<PathBuf> = paths

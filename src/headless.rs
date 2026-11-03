@@ -1,9 +1,9 @@
-//! `owly-drop --headless`: the engine without Qt, for testing it on the
+//! `kowly --headless`: the engine without Qt, for testing it on the
 //! veth harness, or from a script.
 //!
 //! ```text
-//! owly-drop --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]
-//! owly-drop --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE...
+//! kowly --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]
+//! kowly --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE...
 //! ```
 //!
 //! Without `--iface`, the radio comes from owlyd. Updates go to stdout, one
@@ -61,7 +61,10 @@ pub fn main(args: Vec<String>) -> ExitCode {
     while let Some(update) = updates.blocking_recv() {
         println!("{}", line(&update));
         match update {
-            Update::Radio { state: RadioState::Up, .. } if sending => {
+            Update::Radio {
+                state: RadioState::Up,
+                ..
+            } if sending => {
                 let _ = commands.send(Command::Scan(seconds));
             }
             Update::Radio {
@@ -78,7 +81,10 @@ pub fn main(args: Vec<String>) -> ExitCode {
                 });
             }
             Update::Device(d) if sending && !sent => {
-                if to.as_deref().is_some_and(|t| crate::airdrop::same_name(t, &d.name)) {
+                if to
+                    .as_deref()
+                    .is_some_and(|t| crate::airdrop::same_name(t, &d.name))
+                {
                     sent = true;
                     let _ = commands.send(Command::Send {
                         device: d.id,
@@ -122,7 +128,7 @@ fn line(update: &Update) -> String {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  owly-drop --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]\n  owly-drop --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE..."
+        "usage:\n  kowly --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]\n  kowly --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE..."
     );
     ExitCode::from(64)
 }

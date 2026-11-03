@@ -1,6 +1,6 @@
 [package]
-name = "owly-drop"
-description = "kowly: AirDrop for KDE Plasma, on Owly."
+name = "kowly"
+description = "AirDrop for KDE Plasma, on Owly."
 repository = "https://github.com/oowl/kowly"
 version = "0.1.0"
 edition = "2021"

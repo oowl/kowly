@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=kowly
+GenericName=AirDrop
+GenericName[zh_CN]=AirDrop 隔空投送
+Comment=Send files to and receive files from iPhones
+Comment[zh_CN]=与 iPhone 互传文件
+Exec=kowly %F
+Icon=io.github.oowl.kowly
+Terminal=false
+Categories=Qt;KDE;Network;FileTransfer;
+Keywords=airdrop;iphone;ios;apple;owly;share;
+Keywords[zh_CN]=airdrop;隔空投送;iphone;苹果;分享;
+StartupNotify=true

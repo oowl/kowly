@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # Arch has the Qt and Kirigami kowly is developed against. Privileged,
+    # so the veth tests may make user and network namespaces.
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed base-devel rust git iproute2 \
+            qt6-base qt6-declarative kirigami
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-arch-${{ hashFiles('Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Send and receive end to end
+        timeout-minutes: 10
+        run: scripts/veth-test.sh
+
+  metadata:
+    name: Desktop metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends appstream desktop-file-utils
+
+      - name: Validate
+        run: |
+          desktop-file-validate packaging/linux/io.github.oowl.kowly.desktop
+          appstreamcli validate --no-net packaging/linux/io.github.oowl.kowly.metainfo.xml

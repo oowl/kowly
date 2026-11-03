@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use owly_airdrop::proto::ble::{APPLE_COMPANY_ID, Advert, INTERVAL_MS};
+use owly_airdrop::proto::ble::{Advert, APPLE_COMPANY_ID, INTERVAL_MS};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
 const MANAGER: &str = "org.bluez.LEAdvertisingManager1";
@@ -95,7 +95,7 @@ impl BluezAdvertiser {
     pub async fn advertise(&self, advert: Advert) -> io::Result<Registration> {
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
         let path = ObjectPath::try_from(format!(
-            "/io/github/owlydrop/advert{}_{n}",
+            "/io/github/oowl/kowly/advert{}_{n}",
             std::process::id()
         ))
         .map_err(io::Error::other)?

@@ -728,6 +728,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "kowly"
+version = "0.1.0"
+dependencies = [
+ "cxx",
+ "cxx-qt",
+ "cxx-qt-build",
+ "cxx-qt-lib",
+ "futures-util",
+ "getrandom 0.3.4",
+ "nix",
+ "owly-airdrop",
+ "owly-awdl",
+ "owly-radio",
+ "owlyd",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbus",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -874,30 +898,6 @@ source = "git+https://github.com/t4t5/owly?rev=0f2ca4087e6d938d823e76c856fcd04d0
 dependencies = [
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "owly-drop"
-version = "0.1.0"
-dependencies = [
- "cxx",
- "cxx-qt",
- "cxx-qt-build",
- "cxx-qt-lib",
- "futures-util",
- "getrandom 0.3.4",
- "nix",
- "owly-airdrop",
- "owly-awdl",
- "owly-radio",
- "owlyd",
- "rustls",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zbus",
 ]
 
 [[package]]

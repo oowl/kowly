@@ -79,7 +79,10 @@ pub fn random_service_id() -> io::Result<String> {
 }
 
 pub fn new_sender(name: &str) -> io::Result<Sender> {
-    Sender::new(proto_sender::Config::new(name.to_string(), random_service_id()?))
+    Sender::new(proto_sender::Config::new(
+        name.to_string(),
+        random_service_id()?,
+    ))
 }
 
 /// BLE-1: the advert that makes Apple receivers turn on AirDrop. Without

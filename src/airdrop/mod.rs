@@ -33,7 +33,9 @@ pub struct Settings {
 
 impl Settings {
     pub fn defaults() -> Settings {
-        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_default();
         Settings {
             name: hostname(),
             dir: home.join("Downloads").join("AirDrop"),
@@ -78,14 +80,23 @@ pub enum Command {
     RadioDown,
     /// Look for receivers for this many seconds, waking iPhones over BLE.
     Scan(u64),
-    Send { device: String, paths: Vec<PathBuf> },
-    Answer { id: u64, accept: bool },
+    Send {
+        device: String,
+        paths: Vec<PathBuf>,
+    },
+    Answer {
+        id: u64,
+        accept: bool,
+    },
     Settings(Settings),
     /// Whether the window has focus: notifications are only for when it
     /// hasn't.
     WindowActive(bool),
     /// A desktop notification's button was pressed.
-    NotificationAction { notification: u32, key: String },
+    NotificationAction {
+        notification: u32,
+        key: String,
+    },
     /// Open a received file with its default application.
     Open(PathBuf),
     /// Show a received file in the file manager.

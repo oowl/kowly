@@ -1,14 +1,14 @@
-//! One window. The first `owly-drop` owns `io.github.owlydrop` on the session
-//! bus; a later `owly-drop FILE...`, as from Dolphin's menu, hands its files
+//! One window. The first `kowly` owns `io.github.oowl.kowly` on the session
+//! bus; a later `kowly FILE...`, as from Dolphin's menu, hands its files
 //! to it there and exits, rather than fighting it for the radio.
 
 use std::sync::Mutex;
 
 use zbus::fdo::RequestNameFlags;
 
-const NAME: &str = "io.github.owlydrop";
-const PATH: &str = "/io/github/owlydrop";
-const INTERFACE: &str = "io.github.owlydrop.Window";
+const NAME: &str = "io.github.oowl.kowly";
+const PATH: &str = "/io/github/oowl/kowly";
+const INTERFACE: &str = "io.github.oowl.kowly.Window";
 
 type Deliver = Box<dyn Fn(Vec<String>) + Send>;
 
@@ -44,12 +44,16 @@ pub fn take_files(deliver: impl Fn(Vec<String>) + Send + 'static) -> Vec<String>
 
 struct Window;
 
-#[zbus::interface(name = "io.github.owlydrop.Window")]
+#[zbus::interface(name = "io.github.oowl.kowly.Window")]
 impl Window {
     /// Files to send, as absolute paths or file URLs.
     fn stage(&self, files: Vec<String>) {
         // An empty list just asks for the window.
-        deliver(if files.is_empty() { vec![String::new()] } else { files });
+        deliver(if files.is_empty() {
+            vec![String::new()]
+        } else {
+            files
+        });
     }
 }
 
@@ -79,8 +83,14 @@ pub fn claim(files: Vec<String>) -> Option<Option<Instance>> {
         {
             Ok(_) => Ok(Some(conn)),
             Err(zbus::Error::NameTaken) => {
-                conn.call_method(Some(NAME), PATH, Some(INTERFACE), "Stage", &(files.clone(),))
-                    .await?;
+                conn.call_method(
+                    Some(NAME),
+                    PATH,
+                    Some(INTERFACE),
+                    "Stage",
+                    &(files.clone(),),
+                )
+                .await?;
                 Ok(None)
             }
             Err(e) => Err(e),

@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (defaults to v + the version in Cargo.toml; created if missing)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare-release:
+    name: Resolve or create release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      epoch: ${{ steps.release.outputs.epoch }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve or create tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          if [[ "$GITHUB_REF_TYPE" == "tag" && -z "$INPUT_TAG" ]]; then
+            tag="$GITHUB_REF_NAME"
+          elif [[ -n "$INPUT_TAG" ]]; then
+            tag="$INPUT_TAG"
+          else
+            tag="v$version"
+          fi
+
+          if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?)$ ]]; then
+            echo "Release tag must look like v0.1.0: $tag" >&2
+            exit 1
+          fi
+          git check-ref-format "refs/tags/$tag"
+
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            sha=$(git rev-parse "refs/tags/$tag^{commit}")
+          else
+            sha=$(git rev-parse HEAD)
+          fi
+
+          # The packages are named from Cargo.toml and the PKGBUILD, so a
+          # tag that disagrees with them would mislabel the release.
+          cargo_version=$(git show "$sha:Cargo.toml" | python3 -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["package"]["version"])')
+          pkgver=$(git show "$sha:packaging/arch/PKGBUILD" | sed -n 's/^pkgver=//p')
+          if [[ "$tag" != "v$cargo_version" || "$pkgver" != "$cargo_version" ]]; then
+            echo "Tag $tag, Cargo.toml $cargo_version and the PKGBUILD's $pkgver must agree" >&2
+            exit 1
+          fi
+
+          if ! git show-ref --verify --quiet "refs/tags/$tag"; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$tag" -f "sha=$sha"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git show --no-patch --format=%ct "$sha")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.format }} (${{ matrix.image }})
+    needs: prepare-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # Each package is built on the release it's for: kowly links Qt's
+    # private QML API, so a package works only with the Qt it was built
+    # against (packaging/package.sh).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: deb
+            image: debian:trixie
+            glob: "*.deb"
+          - format: rpm
+            image: fedora:44
+            glob: "*.rpm"
+          - format: arch
+            image: archlinux:latest
+            glob: "*.pkg.tar.zst"
+    container:
+      image: ${{ matrix.image }}
+    env:
+      SOURCE_DATE_EPOCH: ${{ needs.prepare-release.outputs.epoch }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+
+      - name: Build package
+        run: |
+          mkdir -p dist
+          OUT="$PWD/dist" packaging/ci/${{ matrix.format }}.sh
+
+      - name: Inspect package
+        shell: bash
+        run: |
+          case "${{ matrix.format }}" in
+          deb)
+            dpkg-deb --info dist/*.deb
+            dpkg-deb --contents dist/*.deb
+            ;;
+          rpm)
+            rpm --query --package --info --requires dist/*.rpm
+            rpm --query --package --list dist/*.rpm
+            ;;
+          arch)
+            bsdtar -xOf dist/*.pkg.tar.zst .PKGINFO
+            bsdtar -xOf dist/*.pkg.tar.zst .MTREE | gzip --decompress > mtree.txt
+            ! grep --extended-regexp --quiet '(^| )(uid|gid)=[1-9][0-9]*($| )' mtree.txt
+            ;;
+          esac
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: kowly-${{ matrix.format }}
+          path: dist/${{ matrix.glob }}
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke-test:
+    name: Install and start ${{ matrix.format }} (${{ matrix.image }})
+    needs: [prepare-release, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: deb
+            image: debian:trixie
+          - format: rpm
+            image: fedora:44
+          - format: arch
+            image: archlinux:latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: kowly-${{ matrix.format }}
+          path: dist
+
+      - name: Install and start
+        run: packaging/ci/smoke.sh dist/* "$PWD/smoke-${{ matrix.format }}.png"
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-${{ matrix.format }}
+          path: smoke-${{ matrix.format }}.png
+          retention-days: 7
+
+  publish-release:
+    name: Publish release assets
+    needs: [prepare-release, build, smoke-test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: kowly-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify assets and create checksums
+        shell: bash
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.deb dist/*.rpm dist/*.pkg.tar.zst)
+          test "${#assets[@]}" -eq 3
+          (cd dist && sha256sum -- *.deb *.rpm *.pkg.tar.zst > SHA256SUMS.txt)
+          ls -lh dist
+          (cd dist && sha256sum --check SHA256SUMS.txt)
+
+      - name: Create release or upload all packages
+        shell: bash
+        run: |
+          version=${RELEASE_TAG#v}
+          shopt -s nullglob
+          assets=(dist/*.deb dist/*.rpm dist/*.pkg.tar.zst dist/SHA256SUMS.txt)
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "kowly $version" \
+              --repo "$GITHUB_REPOSITORY"
+          fi

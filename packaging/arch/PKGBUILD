@@ -1,0 +1,44 @@
+# Maintainer: Jun Ouyang <ouyangjun1999@gmail.com>
+#
+# The binary links Qt's private QML API (qmlcachegen's compiled QML), so it
+# needs rebuilding for each new Qt 6 minor release.
+
+pkgname=kowly
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="AirDrop for KDE Plasma: send and receive files with iPhones, on Owly"
+arch=('x86_64' 'aarch64')
+url="https://github.com/oowl/kowly"
+license=('MIT')
+depends=('owly' 'qt6-base' 'qt6-declarative' 'kirigami' 'hicolor-icon-theme' 'gcc-libs' 'glibc')
+makedepends=('cargo')
+optdepends=(
+    'qt6-wayland: run on Wayland'
+    'qqc2-desktop-style: the Plasma look for the window'
+    'bluez: wake iPhones to send to them'
+    'xdg-utils: open received files'
+    'dolphin: "Send with AirDrop" in the context menu'
+)
+# makepkg's LTO flags reach cxx-qt's C++, which rustc then can't link.
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# The release tarball's; run updpkgsums once v$pkgver is tagged.
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    DESTDIR="$pkgdir" TARGET=target packaging/stage.sh
+}

@@ -18,8 +18,6 @@ AirDrop for KDE Plasma: send files to and receive files from iPhones, on [Owly](
 - **Control**: one switch takes the radio and gives it back. The window shows the AWDL peers nearby and each transfer's progress.
 - **English and Chinese**: follows the system's language, or choose one in Settings.
 
-The executable is `owly-drop`.
-
 ## How it works
 
 ```
@@ -36,20 +34,28 @@ Monitor mode and AWDL need root, so they stay in Owly's system service, `owlyd`.
 
 ## Install
 
-1. **Owly** (once, with sudo):
-   ```sh
-   yay -S owly
-   ```
-   owlyd starts on demand over D-Bus, so there's nothing to enable. polkit lets the user at the seat take the radio without a password.
+First install **Owly**, which kowly needs for the radio: `yay -S owly` on Arch, or its `.deb` or `.rpm` from [Owly's releases](https://github.com/t4t5/owly/releases). owlyd starts on demand over D-Bus, so there's nothing to enable, and polkit lets the user at the seat take the radio without a password.
 
-2. **kowly** (for your user, no root):
-   ```sh
-   git clone https://github.com/oowl/kowly && cd kowly
-   scripts/install.sh
-   ```
-   This builds a release, installs `~/.local/bin/owly-drop`, adds *AirDrop* to the app launcher, and adds *Send with AirDrop* to Dolphin's context menu. `scripts/install.sh uninstall` removes them.
+Then **kowly**, from [the releases](https://github.com/oowl/kowly/releases):
 
-Building needs Rust, Qt 6 (base, declarative, wayland) and Kirigami, all of which a Plasma 6 desktop has.
+| Distribution | Package | Install |
+|---|---|---|
+| Arch Linux | `kowly-*-x86_64.pkg.tar.zst` | `sudo pacman -U kowly-*.pkg.tar.zst` |
+| Debian 13 | `kowly_*_amd64.deb` | `sudo apt install ./owly_*.deb ./kowly_*.deb` |
+| Fedora 44 | `kowly-*.x86_64.rpm` | `sudo dnf install ./owly-*.rpm ./kowly-*.rpm` |
+
+kowly links Qt's private QML API, so each package works only with the exact Qt of the release it was built for, and depends on it. The deb is for Debian 13 alone: for another release, such as an Ubuntu with KDE Frameworks 6, build one there with `packaging/package.sh deb`. On Arch, rebuild after Qt's minor version changes; `packaging/arch/PKGBUILD` is the recipe.
+
+### From source
+
+For your user, without root:
+
+```sh
+git clone https://github.com/oowl/kowly && cd kowly
+scripts/install.sh
+```
+
+This builds a release, installs `~/.local/bin/kowly`, adds kowly to the app launcher, and adds *Send with AirDrop* to Dolphin's context menu. `scripts/install.sh uninstall` removes them. Building needs Rust 1.88 or newer, Qt 6 (base, declarative) and Kirigami, all of which a Plasma 6 desktop has.
 
 ## Before you start
 
@@ -113,16 +119,29 @@ Both run, as Owly's own tests do, in a user network namespace (`unshare`) on a v
 
 `docs/screenshots/` is `scripts/gui-demo.sh docs/screenshots`.
 
+CI runs formatting, Clippy, the build and `scripts/veth-test.sh` on every push.
+
+### Packages
+
+```sh
+scripts/build-packages.sh [deb] [rpm] [arch]   # into dist/, each in a container of its release
+scripts/test-packages.sh                       # install each on a fresh container, and start it
+```
+
+They need docker or podman. `packaging/stage.sh` lays out the files every package shares, `packaging/package.sh` makes the deb and the rpm, `packaging/arch/PKGBUILD` the Arch package, and `packaging/ci/` sets up each container.
+
+Pushing a `v*` tag, or running the Release workflow, builds all three on their releases, installs and starts each, and publishes them with `SHA256SUMS.txt`. The tag, `Cargo.toml` and the PKGBUILD's `pkgver` must agree.
+
 ### Headless mode
 
 For debugging and scripts:
 
 ```sh
-owly-drop --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]
-owly-drop --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE...
+kowly --headless receive [--iface IF] [--name N] [--dir D] [--accept | --answer yes|no] [--once]
+kowly --headless send [--iface IF] [--name N] --to NAME [--seconds S] FILE...
 ```
 
-Without `--iface`, the radio comes from owlyd. `OWLY_DROP_IFACE=<interface>` makes the window skip owlyd and use that interface as it is.
+Without `--iface`, the radio comes from owlyd. `KOWLY_IFACE=<interface>` makes the window skip owlyd and use that interface as it is.
 
 ## Known limitations
 

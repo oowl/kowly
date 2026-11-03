@@ -8,5 +8,5 @@ Actions=airdrop
 [Desktop Action airdrop]
 Name=Send with AirDrop
 Name[zh_CN]=用 AirDrop 发送
-Icon=document-send
-Exec=owly-drop %F
+Icon=io.github.oowl.kowly
+Exec=kowly %F
